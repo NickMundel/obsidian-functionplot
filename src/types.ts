@@ -1,6 +1,12 @@
 import { Chart } from "function-plot"
 import { EventEmitter } from "events"
 
+export interface FunctionOptions {
+  function: string
+  derivative: string
+  updateOnMouseMove: boolean
+}
+
 export interface PlotOptions {
   title: string
   id?: string
@@ -8,8 +14,10 @@ export interface PlotOptions {
   yLabel: string
   bounds: [number, number, number, number]
   disableZoom: boolean
-  grid: boolean
-  functions: string[]
+  grid: boolean,
+  functions: FunctionOptions[],
+  aspectratio: string
+ 
 }
 
 export const DEFAULT_PLOT_OPTIONS: PlotOptions = {
@@ -19,7 +27,8 @@ export const DEFAULT_PLOT_OPTIONS: PlotOptions = {
   bounds: [-10, 10, -10, 10],
   disableZoom: false,
   grid: true,
-  functions: []
+  functions: [],
+  aspectratio: ''
 }
 
 export interface PluginSettings {

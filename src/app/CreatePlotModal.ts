@@ -1,7 +1,7 @@
 import { Chart } from 'function-plot'
 import { FunctionPlotDatum } from 'function-plot/dist/types'
 import { App, Modal, Setting } from 'obsidian'
-import { DEFAULT_PLOT_OPTIONS, PlotOptions, PluginSettings } from '../types'
+import { DEFAULT_PLOT_OPTIONS, PlotOptions, PluginSettings, FunctionOptions} from '../types'
 import ObsidianFunctionPlot, { createPlot } from '../main'
 
 
@@ -25,6 +25,7 @@ export default class CreatePlotModal extends Modal {
   async reloadPreview() {
     if (!this.plot) return
     // update values
+    //this.plot.options.width = this.plot.root.parentElement.clientWidth
     this.plot.options.title = this.options.title
     this.plot.options.xAxis.label = this.options.xLabel
     this.plot.options.yAxis.label = this.options.yLabel
@@ -32,11 +33,21 @@ export default class CreatePlotModal extends Modal {
     this.plot.options.yAxis.domain = this.options.bounds.slice(2, 4)
     this.plot.options.grid = this.options.grid
     this.plot.options.data = this.options.functions.map((f): FunctionPlotDatum => {
-      return {
-        fn: f.split('=')[1],
-        graphType: 'polyline'
+      const result: Partial<FunctionPlotDatum> = { 
+        fn: f.function.split('=')[1], 
+        graphType: 'polyline' as const
+      };
+    
+      if (f.derivative) {
+        result.derivative = {
+          fn: f.derivative,
+          updateOnMouseMove: f.updateOnMouseMove
+        };
       }
+    
+      return result as FunctionPlotDatum;
     })
+    console.log(this.plot.options.data)
     // redirect errors within function-plot to debug
     try {
       this.plot.build()
@@ -52,11 +63,11 @@ export default class CreatePlotModal extends Modal {
     // Header
     contentEl.createEl('h1', { text: 'Plot a function' })
 
-    const flex = contentEl.createDiv({ attr: {style: 'display: flex; align-items: center'} })
+    const flex = contentEl.createDiv({ attr: {style: 'display: flex; align-items: center; flex-direction: column;'} })
 
     const settings = flex.createDiv()
     const preview = flex.createDiv({ attr: { style: 'padding: 1em' } })
-    this.plot = await createPlot(Object.assign({}, this.options, { disableZoom: true }), preview.createDiv(), this.plugin)
+    this.plot = await createPlot(Object.assign({}, this.options, { disableZoom: true }), preview.createDiv(), this.plugin, null)
     preview.createEl('p', { text: 'Preview - Zoom is disabled while in preview', attr: {style: 'margin: 0 3em; font-size: 0.8em; color: var(--text-faint)'} })
 
     new Setting(settings).setName('Title').addText((text) => {
@@ -116,10 +127,24 @@ export default class CreatePlotModal extends Modal {
       })
     })
 
-    new Setting(settings).setName('Functions').setDesc('Specify functions to plot. Must be in format: <name>(x) = <expression>').addTextArea((com) => {
+    new Setting(settings).setName('Functions').setDesc('Specify functions to plot. Must be in format: <name>(x) = <expression> | derivative | updateOnMouseMove').addTextArea((com) => {
       com.onChange(async (value) => {
         if (!value.trim()) return
-        this.options.functions = value.split('\n').map((f) => f.trim() || undefined)
+        this.options.functions = value.split('\n').map((f) => f.trim() || undefined).map(line => {
+          const [func, derivative, updateOnMouseMove] = line.split(' | ').filter(el => el.length > 0).slice(0, 3);
+          const result: FunctionOptions = { 
+            function: func,
+            derivative: '',
+            updateOnMouseMove: false
+          };
+        
+          if (derivative) {
+            result.derivative = derivative
+            result.updateOnMouseMove = updateOnMouseMove ? updateOnMouseMove.toLowerCase() === 'true' : false
+          }
+        
+          return result as FunctionOptions;
+        });
         // maybe check if there are valid functions
         await this.reloadPreview()
       })
@@ -131,15 +156,17 @@ export default class CreatePlotModal extends Modal {
         .setCta()
         .onClick(() => {
           this.close()
-          this.onSubmit({
-            title: this.options.title,
-            xLabel: this.options.xLabel,
-            yLabel: this.options.yLabel,
-            bounds: this.options.bounds,
-            disableZoom: this.options.disableZoom,
-            grid: this.options.grid,
-            functions: this.options.functions,
-          })
+          this.onSubmit(
+            {
+              title: this.options.title,
+              xLabel: this.options.xLabel,
+              yLabel: this.options.yLabel,
+              bounds: this.options.bounds,
+              disableZoom: this.options.disableZoom,
+              grid: this.options.grid,
+              functions: this.options.functions,
+              aspectratio: ''
+            })
         })
     })
   }
